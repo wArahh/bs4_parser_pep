@@ -21,7 +21,7 @@ def whats_new(session):
     soup = BeautifulSoup(response.text, 'lxml')
     all_notes = soup.find_all('li', attrs={'class': 'toctree-l1'})
     tags = []
-    results = [('Ссылка на документацию', 'Версия', 'Статус')]
+    results = [('Ссылка на статью', 'Заголовок', 'Редактор, автор')]
     for note in all_notes:
         tags.append(find_tag(note, 'a'))
     for tag in tqdm(tags):
@@ -69,7 +69,9 @@ def download(session):
         return
     response.encoding = 'utf-8'
     soup = BeautifulSoup(response.text, 'lxml')
-    download_documentation_table = find_tag(soup, 'table', {'class': 'docutils'})
+    download_documentation_table = find_tag(
+        soup, 'table', {'class': 'docutils'}
+    )
     find_a = find_tag(download_documentation_table, 'a')
     full_href = urljoin(downloads_url, find_a['href'])
     filename = full_href.split('/')[-1]
@@ -92,13 +94,26 @@ def pep(session):
     find_tr = numerical_index.find_all('tr')
     for tr in tqdm(find_tr[1:]):
         status = find_tag(tr, 'abbr')['title'].split(', ')[1]
-        CERTAIN_URL = urljoin(PEP_DOC_URL, find_tag(tr, 'a', {'class': 'pep reference internal'})['href'])
+        CERTAIN_URL = urljoin(PEP_DOC_URL, find_tag(
+            tr, 'a', {'class': 'pep reference internal'})['href']
+                              )
         certain_pep_response = get_response(session, CERTAIN_URL)
         certain_pep_response.encoding = 'utf-8'
         certain_doc_soup = BeautifulSoup(certain_pep_response.text, 'lxml')
         certain_doc_status = find_tag(certain_doc_soup, 'abbr').text
+        csv_dir = BASE_DIR / 'results'
+        csv_dir.mkdir(exist_ok=True)
+        archive_path = csv_dir / 'pep.csv'
         if certain_doc_status != status:
-            print(status)
+            unexpected_status = (
+                f'''Несовпадающие статусы:
+{CERTAIN_URL}
+Статус в карточке: {certain_doc_status}
+Ожидаемый статус: {status}
+                '''
+            )
+            with open(archive_path, 'w') as file:
+                file.write(unexpected_status)
 
 
 MODE_TO_FUNCTION = {
