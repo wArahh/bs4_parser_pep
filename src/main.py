@@ -3,14 +3,15 @@ import re
 from urllib.parse import urljoin
 
 import requests_cache
-from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import BASE_DIR, MAIN_DOC_URL, PEP_DOC_URL
+from constants import (BASE_DIR, DOWNLOAD_FILENAME, MAIN_DOC_URL, PEP_DOC_URL,
+                       fetch_and_parse)
 from outputs import control_output
-from utils import find_tag, get_response
+from utils import find_tag
 
+CANT_CONNECT = 'Невозможно подключистя {e}'
 RESPONSE_IS_NONE = 'response is None'
 UNEXPECTED_STATUS = (
     '\nНесовпадающие статусы: \n'
@@ -25,13 +26,6 @@ ERROR_EXPECTED = 'Произошла ошибка в процессе выпол
 PARSER_ENDED = 'Парсер успешно завершил свою работу'
 
 
-def fetch_and_parse(session, url, encoding='utf-8'):
-    response = get_response(session, url, encoding)
-    if response is None:
-        return None
-    return BeautifulSoup(response.text, 'lxml')
-
-
 def whats_new(session):
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
     soup = fetch_and_parse(session, whats_new_url)
@@ -43,7 +37,10 @@ def whats_new(session):
     for tag in tqdm(tags):
         href = tag['href']
         version_link = urljoin(whats_new_url, href)
-        soup = fetch_and_parse(session, version_link)
+        try:
+            soup = fetch_and_parse(session, version_link)
+        except ConnectionError as e:
+            logging.error(CANT_CONNECT.format(e=e))
         results.append(
             (
                 version_link,
@@ -63,14 +60,15 @@ def latest_versions(session):
     pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
     for a_tag in a_tags:
         text_match = re.search(pattern, a_tag.text)
-        if text_match:
-            results.append(
-                (
-                    a_tag['href'],
-                    text_match.group('version'),
-                    text_match.group('status')
-                )
+        if not text_match:
+            continue
+        results.append(
+            (
+                a_tag['href'],
+                text_match.group('version'),
+                text_match.group('status')
             )
+        )
     return results
 
 
@@ -83,9 +81,7 @@ def download(session):
     find_a = find_tag(download_documentation_table, 'a')
     full_href = urljoin(downloads_url, find_a['href'])
     filename = full_href.split('/')[-1]
-    DOWNLOADS_DIR = BASE_DIR / 'downloads'  # я не знаю что за прикол,
-    # но из файла с константами просто не работает пайтест,
-    # хотя по факту все создается
+    DOWNLOADS_DIR = BASE_DIR / DOWNLOAD_FILENAME
     DOWNLOADS_DIR.mkdir(exist_ok=True)
     archive_path = DOWNLOADS_DIR / filename
     response = session.get(full_href)
@@ -102,15 +98,17 @@ def pep(session):
         CERTAIN_URL = urljoin(PEP_DOC_URL, find_tag(
             tr, 'a', {'class': 'pep reference internal'})['href']
                               )
-        certain_doc_soup = fetch_and_parse(session, CERTAIN_URL)
+        try:
+            certain_doc_soup = fetch_and_parse(session, CERTAIN_URL)
+        except ConnectionError as e:
+            logging.error(CANT_CONNECT.format(e=e))
         certain_doc_status = find_tag(certain_doc_soup, 'abbr').text
         if certain_doc_status != status:
-            logging.info(UNEXPECTED_STATUS_HAS_FOUND)
-            return print(UNEXPECTED_STATUS.format(
+            return UNEXPECTED_STATUS.format(
                 CERTAIN_URL=CERTAIN_URL,
                 certain_doc_status=certain_doc_status,
                 status=status
-            ))
+            )
 
 
 MODE_TO_FUNCTION = {

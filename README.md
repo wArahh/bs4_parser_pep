@@ -7,6 +7,9 @@ git clone git@github.com:wArahh/bs4_parser_pep.git
 
 Создайте, активируйте виртуальное окружение и установите зависимости:
 ```
+cd bs4_parser_pep/
+```
+```
 python -m venv venv
 ```
 ```
@@ -64,5 +67,8 @@ python main.py [вариант парсера] -o file
 
 ## Стек
 - Python 3.9
+- BeautifulSoup4 
+- Prettytable
+- CSV
 ## Автор
 - [Макаренко Никита](https://github.com/wArahh)
