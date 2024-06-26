@@ -69,6 +69,5 @@ python main.py [вариант парсера] -o file
 - Python 3.9
 - BeautifulSoup4 
 - Prettytable
-- CSV
 ## Автор
 - [Макаренко Никита](https://github.com/wArahh)

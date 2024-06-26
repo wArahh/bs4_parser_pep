@@ -2,22 +2,23 @@ import logging
 import re
 from urllib.parse import urljoin
 
+from collections import defaultdict
 import requests_cache
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import (BASE_DIR, DOWNLOAD_FILENAME, MAIN_DOC_URL, PEP_DOC_URL,
-                       fetch_and_parse)
+from constants import (BASE_DIR, DOWNLOADS, MAIN_DOC_URL, PEP_DOC_URL,)
 from outputs import control_output
-from utils import find_tag
+from utils import find_tag, fetch_and_parse
 
 CANT_CONNECT = 'Невозможно подключистя {e}'
 RESPONSE_IS_NONE = 'response is None'
 UNEXPECTED_STATUS = (
-    '\nНесовпадающие статусы: \n'
+    'Несовпадающие статусы: \n'
     '{CERTAIN_URL} \n'
     'Статус в карточке: {certain_doc_status} \n'
-    'Ожидаемый статус: {status} \n'
+    'Ожидаемый статус: {status}'
+    ''
 )
 UNEXPECTED_STATUS_HAS_FOUND = 'Был найден неожиданный статус'
 PARSER_STARTED = 'Парсер запущен!'
@@ -27,6 +28,7 @@ PARSER_ENDED = 'Парсер успешно завершил свою работ
 
 
 def whats_new(session):
+    cant_connect = []
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
     soup = fetch_and_parse(session, whats_new_url)
     all_notes = soup.find_all('li', attrs={'class': 'toctree-l1'})
@@ -40,7 +42,9 @@ def whats_new(session):
         try:
             soup = fetch_and_parse(session, version_link)
         except ConnectionError as e:
-            logging.error(CANT_CONNECT.format(e=e))
+            cant_connect.append(CANT_CONNECT.format(e=e))
+        if not soup:
+            continue
         results.append(
             (
                 version_link,
@@ -48,6 +52,8 @@ def whats_new(session):
                 find_tag(soup, 'dl').text.replace('\n', ' ')
             )
         )
+    if cant_connect:
+        logging.error(cant_connect)
     return results
 
 
@@ -81,7 +87,7 @@ def download(session):
     find_a = find_tag(download_documentation_table, 'a')
     full_href = urljoin(downloads_url, find_a['href'])
     filename = full_href.split('/')[-1]
-    DOWNLOADS_DIR = BASE_DIR / DOWNLOAD_FILENAME
+    DOWNLOADS_DIR = BASE_DIR / DOWNLOADS
     DOWNLOADS_DIR.mkdir(exist_ok=True)
     archive_path = DOWNLOADS_DIR / filename
     response = session.get(full_href)
@@ -90,25 +96,44 @@ def download(session):
 
 
 def pep(session):
+    cant_connect = []
+    unexpected_status = []
     soup = fetch_and_parse(session, PEP_DOC_URL)
     numerical_index = find_tag(soup, 'section', {'id': 'numerical-index'})
     find_tr = numerical_index.find_all('tr')
+    pep_status_count = defaultdict(int)
     for tr in tqdm(find_tr[1:]):
         status = find_tag(tr, 'abbr')['title'].split(', ')[1]
-        CERTAIN_URL = urljoin(PEP_DOC_URL, find_tag(
-            tr, 'a', {'class': 'pep reference internal'})['href']
-                              )
+        CERTAIN_URL = urljoin(
+            PEP_DOC_URL, find_tag(
+                tr, 'a', {'class': 'pep reference internal'})['href']
+        )
         try:
             certain_doc_soup = fetch_and_parse(session, CERTAIN_URL)
         except ConnectionError as e:
-            logging.error(CANT_CONNECT.format(e=e))
+            cant_connect.append(CANT_CONNECT.format(e=e))
+        if not certain_doc_soup:
+            continue
         certain_doc_status = find_tag(certain_doc_soup, 'abbr').text
+        pep_status_count[certain_doc_status] += 1
         if certain_doc_status != status:
-            return UNEXPECTED_STATUS.format(
-                CERTAIN_URL=CERTAIN_URL,
-                certain_doc_status=certain_doc_status,
-                status=status
-            )
+            unexpected_status.append(
+                UNEXPECTED_STATUS.format(
+                    CERTAIN_URL=CERTAIN_URL,
+                    certain_doc_status=certain_doc_status,
+                    status=status
+                ))
+    if cant_connect:
+        logging.error(cant_connect)
+    if unexpected_status:
+        for status in unexpected_status:
+            logging.warning(status)
+    results = [('Статус', 'количесво')]
+    for status, count in pep_status_count.items():
+        results.append(
+            (status, count)
+        )
+    return results
 
 
 MODE_TO_FUNCTION = {

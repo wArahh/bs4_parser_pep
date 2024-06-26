@@ -2,7 +2,7 @@ import argparse
 import logging
 from logging.handlers import RotatingFileHandler
 
-from constants import LOG_DIR, LOG_FILE, OUTPUT_CHOICES
+from constants import LOG_DIR, LOG_FILE, PRETTY_FILEDATA, FILE_OUTPUT
 
 LOG_FORMAT = '"%(asctime)s - [%(levelname)s] - %(message)s"'
 DT_FORMAT = '%d.%m.%Y %H:%M:%S'
@@ -24,7 +24,7 @@ def configure_argument_parser(available_modes):
     parser.add_argument(
         '-o',
         '--output',
-        choices=OUTPUT_CHOICES,
+        choices=(PRETTY_FILEDATA, FILE_OUTPUT),
         help='Дополнительные способы вывода данных'
     )
     return parser
