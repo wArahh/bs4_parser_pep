@@ -28,7 +28,7 @@ PARSER_ENDED = 'Парсер успешно завершил свою работ
 
 
 def whats_new(session):
-    cant_connect = []
+    connection_errors = []
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
     soup = fetch_and_parse(session, whats_new_url)
     all_notes = soup.find_all('li', attrs={'class': 'toctree-l1'})
@@ -42,9 +42,7 @@ def whats_new(session):
         try:
             soup = fetch_and_parse(session, version_link)
         except ConnectionError as e:
-            cant_connect.append(CANT_CONNECT.format(e=e))
-        if not soup:
-            continue
+            connection_errors.append(CANT_CONNECT.format(e=e))
         results.append(
             (
                 version_link,
@@ -52,8 +50,8 @@ def whats_new(session):
                 find_tag(soup, 'dl').text.replace('\n', ' ')
             )
         )
-    if cant_connect:
-        logging.error(cant_connect)
+    if connection_errors:
+        logging.error(connection_errors)
     return results
 
 
@@ -112,8 +110,6 @@ def pep(session):
             certain_doc_soup = fetch_and_parse(session, CERTAIN_URL)
         except ConnectionError as e:
             cant_connect.append(CANT_CONNECT.format(e=e))
-        if not certain_doc_soup:
-            continue
         certain_doc_status = find_tag(certain_doc_soup, 'abbr').text
         pep_status_count[certain_doc_status] += 1
         if certain_doc_status != status:
@@ -128,12 +124,11 @@ def pep(session):
     if unexpected_status:
         for status in unexpected_status:
             logging.warning(status)
-    results = [('Статус', 'количесво')]
-    for status, count in pep_status_count.items():
-        results.append(
-            (status, count)
-        )
-    return results
+    return [
+        ('Статус', 'Количество'),
+        *pep_status_count.items(),
+        ('Всего', sum(pep_status_count.values())),
+    ]
 
 
 MODE_TO_FUNCTION = {

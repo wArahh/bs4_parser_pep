@@ -39,13 +39,11 @@ def file_output(results, cli_args):
 
 
 OUTPUT_FUNCTIONS = {
-    'default': default_output,
+    None: default_output,
     PRETTY_FILEDATA: pretty_output,
     FILE_OUTPUT: file_output,
 }
 
 
 def control_output(results, cli_args):
-    return OUTPUT_FUNCTIONS.get(
-        cli_args.output, OUTPUT_FUNCTIONS['default']
-    )(results, cli_args)
+    OUTPUT_FUNCTIONS[cli_args.output](results, cli_args)
