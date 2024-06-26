@@ -11,7 +11,7 @@ def get_response(session, url, encoding='utf-8'):
         response.encoding = encoding
         return response
     except Exception as e:
-        ReferenceError(ERROR_LOADING_PAGE.format(url=url, e=e))
+        ConnectionError(ERROR_LOADING_PAGE.format(url=url, e=e))
 
 
 def find_tag(soup, tag, attrs=None):
