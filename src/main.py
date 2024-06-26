@@ -41,17 +41,17 @@ def whats_new(session):
         version_link = urljoin(whats_new_url, href)
         try:
             soup = fetch_and_parse(session, version_link)
+            results.append(
+                (
+                    version_link,
+                    find_tag(soup, 'h1'),
+                    find_tag(soup, 'dl').text.replace('\n', ' ')
+                )
+            )
         except ConnectionError as e:
             connection_errors.append(CANT_CONNECT.format(e=e))
-        results.append(
-            (
-                version_link,
-                find_tag(soup, 'h1'),
-                find_tag(soup, 'dl').text.replace('\n', ' ')
-            )
-        )
     if connection_errors:
-        logging.error(connection_errors)
+        list(map(logging.error, connection_errors))
     return results
 
 
@@ -94,8 +94,8 @@ def download(session):
 
 
 def pep(session):
-    cant_connect = []
-    unexpected_status = []
+    connection_errors = []
+    unexpected_statuses = []
     soup = fetch_and_parse(session, PEP_DOC_URL)
     numerical_index = find_tag(soup, 'section', {'id': 'numerical-index'})
     find_tr = numerical_index.find_all('tr')
@@ -107,23 +107,21 @@ def pep(session):
                 tr, 'a', {'class': 'pep reference internal'})['href']
         )
         try:
-            certain_doc_soup = fetch_and_parse(session, CERTAIN_URL)
+            soup = fetch_and_parse(session, CERTAIN_URL)
         except ConnectionError as e:
-            cant_connect.append(CANT_CONNECT.format(e=e))
-        certain_doc_status = find_tag(certain_doc_soup, 'abbr').text
+            connection_errors.append(CANT_CONNECT.format(e=e))
+        certain_doc_status = find_tag(soup, 'abbr').text
         pep_status_count[certain_doc_status] += 1
         if certain_doc_status != status:
-            unexpected_status.append(
+            unexpected_statuses.append(
                 UNEXPECTED_STATUS.format(
                     CERTAIN_URL=CERTAIN_URL,
                     certain_doc_status=certain_doc_status,
                     status=status
                 ))
-    if cant_connect:
-        logging.error(cant_connect)
-    if unexpected_status:
-        for status in unexpected_status:
-            logging.warning(status)
+    if connection_errors:
+        logging.error(connection_errors)
+    list(map(logging.warning, unexpected_statuses))
     return [
         ('Статус', 'Количество'),
         *pep_status_count.items(),

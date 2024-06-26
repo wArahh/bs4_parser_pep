@@ -10,8 +10,8 @@ def get_response(session, url, encoding='utf-8'):
         response = session.get(url)
         response.encoding = encoding
         return response
-    except ReferenceError as e:
-        raise ReferenceError(ERROR_LOADING_PAGE.format(url=url, e=e))
+    except Exception as e:
+        ReferenceError(ERROR_LOADING_PAGE.format(url=url, e=e))
 
 
 def find_tag(soup, tag, attrs=None):
